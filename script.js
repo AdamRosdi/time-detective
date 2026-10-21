@@ -313,6 +313,12 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
+    if (startObj.getUTCFullYear() !== 2026 || endObj.getUTCFullYear() !== 2026) {
+      durationTotalDisplay.innerHTML = '⚠️ Please choose dates in 2026.';
+      stepByStepList.innerHTML = '<p class="help-text">Calendar Explorer focuses on dates inside 2026.</p>';
+      return;
+    }
+
     const { steps, totalDays } = generateStepBreakdown(startObj, endObj, includeStart);
 
     // Render Total Display
@@ -534,365 +540,613 @@ document.addEventListener('DOMContentLoaded', () => {
   checkLeapYear();
   renderFebVisual(true);
 
-  /* --- Mini-Game: Spot the Leap Year --- */
-  let gameScore = 0;
-  let gameTotal = 0;
-  let currentRoundCorrectYear = null;
+  /* --- Mini-Game: Spot the Leap Year (5 Rounds) --- */
+  let leapCurrentRound = 0; // 0 to 4
+  let leapGameScore = 0;
+  let leapCurrentStreak = 0;
+  let leapBestStreak = 0;
+  let leapGameYearsInCurrentGame = [];
+  let leapPreviousGameFirstYear = null;
+  let leapCurrentYear = null;
+  let leapGameWrongAnswers = [];
 
-  const gameScoreSpan = document.getElementById('game-score');
-  const gameTotalSpan = document.getElementById('game-total');
-  const gameCardsContainer = document.getElementById('game-cards-container');
-  const gameFeedbackBox = document.getElementById('game-feedback-box');
-  const nextGameRoundBtn = document.getElementById('next-game-round-btn');
+  const leapActiveCard = document.getElementById('leap-game-active-card');
+  const leapSummaryCard = document.getElementById('leap-game-summary-card');
+  const leapCounter = document.getElementById('leap-game-counter');
+  const leapScoreBadge = document.getElementById('leap-game-score-badge');
+  const leapStreakBadge = document.getElementById('leap-game-streak-badge');
+  const leapProgressFill = document.getElementById('leap-game-progress-fill');
+  const leapYearDisplay = document.getElementById('leap-game-year-display');
+  const leapYesBtn = document.getElementById('leap-yes-btn');
+  const leapNoBtn = document.getElementById('leap-no-btn');
+  const leapFeedbackBox = document.getElementById('leap-game-feedback-box');
+  const leapNextBtn = document.getElementById('leap-game-next-btn');
 
-  function generateMiniGameRound() {
-    gameFeedbackBox.innerHTML = '';
-    gameCardsContainer.innerHTML = '';
+  const leapSummaryScore = document.getElementById('leap-summary-score');
+  const leapSummaryStreak = document.getElementById('leap-summary-streak');
+  const leapSummaryWrongList = document.getElementById('leap-summary-wrong-list');
+  const leapRestartBtn = document.getElementById('leap-game-restart-btn');
 
-    // Generate 1 leap year and 3 non-leap years
-    const baseYear = 1990 + Math.floor(Math.random() * 50);
-    let leapYear = baseYear;
-    while (!isLeapYear(leapYear)) leapYear++;
-
-    currentRoundCorrectYear = leapYear;
-
-    const options = [leapYear];
-    while (options.length < 4) {
-      const offset = (Math.floor(Math.random() * 12) + 1) * (Math.random() < 0.5 ? 1 : -1);
-      const candidate = leapYear + offset;
-      if (!isLeapYear(candidate) && candidate > 1900 && !options.includes(candidate)) {
-        options.push(candidate);
-      }
-    }
-
-    // Shuffle options
-    options.sort(() => Math.random() - 0.5);
-
-    options.forEach(yr => {
-      const card = document.createElement('div');
-      card.className = 'game-card-item';
-      card.textContent = yr;
-      card.setAttribute('role', 'button');
-      card.setAttribute('tabindex', '0');
-
-      function handleClick() {
-        if (card.classList.contains('correct') || card.classList.contains('incorrect')) return;
-
-        gameTotal++;
-        if (yr === currentRoundCorrectYear) {
-          gameScore++;
-          card.classList.add('correct');
-          gameFeedbackBox.innerHTML = `
-            <div style="color: var(--success-green);">
-              🎯 <strong>Correct!</strong> ${yr} ÷ 4 = ${yr / 4} (No remainder!). It is a Leap Year!
-            </div>
-          `;
-        } else {
-          card.classList.add('incorrect');
-          gameFeedbackBox.innerHTML = `
-            <div style="color: var(--error-red);">
-              ❌ <strong>Not quite!</strong> ${yr} is not divisible by 4 (${yr} ÷ 4 = ${(yr / 4).toFixed(2)}).
-              The leap year was <strong>${currentRoundCorrectYear}</strong>!
-            </div>
-          `;
-          // Highlight correct card
-          Array.from(gameCardsContainer.children).forEach(c => {
-            if (parseInt(c.textContent, 10) === currentRoundCorrectYear) {
-              c.classList.add('correct');
-            }
-          });
-        }
-
-        gameScoreSpan.textContent = gameScore;
-        gameTotalSpan.textContent = gameTotal;
-      }
-
-      card.addEventListener('click', handleClick);
-      card.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          handleClick();
-        }
-      });
-
-      gameCardsContainer.appendChild(card);
-    });
+  function pickRandomYear2000to2040() {
+    return Math.floor(Math.random() * (2040 - 2000 + 1)) + 2000;
   }
 
-  nextGameRoundBtn.addEventListener('click', generateMiniGameRound);
-  generateMiniGameRound();
+  function getNextLeapGameYear() {
+    let year;
+    for (let attempts = 0; attempts < 100; attempts++) {
+      year = pickRandomYear2000to2040();
+      // Rules:
+      // 1. Same year must not appear twice in the same game
+      // 2. First round year must not match previous game's first round year
+      if (leapGameYearsInCurrentGame.includes(year)) continue;
+      if (leapCurrentRound === 0 && leapPreviousGameFirstYear && year === leapPreviousGameFirstYear) continue;
+      break;
+    }
+    leapGameYearsInCurrentGame.push(year);
+    if (leapCurrentRound === 0) {
+      leapPreviousGameFirstYear = year;
+    }
+    return year;
+  }
+
+  function renderLeapGameRound() {
+    leapCurrentYear = getNextLeapGameYear();
+
+    leapCounter.textContent = `Round ${leapCurrentRound + 1} of 5`;
+    leapScoreBadge.textContent = `Score: ${leapGameScore} / 5`;
+    leapStreakBadge.textContent = `🔥 Streak: ${leapCurrentStreak}`;
+    leapProgressFill.style.width = `${((leapCurrentRound + 1) / 5) * 100}%`;
+
+    leapYearDisplay.textContent = leapCurrentYear;
+
+    leapYesBtn.disabled = false;
+    leapNoBtn.disabled = false;
+    leapFeedbackBox.innerHTML = '';
+    leapNextBtn.style.display = 'none';
+  }
+
+  function handleLeapUserAnswer(userAnsweredLeap) {
+    leapYesBtn.disabled = true;
+    leapNoBtn.disabled = true;
+
+    const actualIsLeap = isLeapYear(leapCurrentYear);
+    const isCorrect = userAnsweredLeap === actualIsLeap;
+
+    let explanationText = '';
+    if (actualIsLeap) {
+      explanationText = `${leapCurrentYear} divided by 4 = ${leapCurrentYear / 4}, so it is a leap year!`;
+    } else {
+      explanationText = `${leapCurrentYear} divided by 4 leaves a remainder, so it is not a leap year.`;
+    }
+
+    if (isCorrect) {
+      leapGameScore++;
+      leapCurrentStreak++;
+      if (leapCurrentStreak > leapBestStreak) {
+        leapBestStreak = leapCurrentStreak;
+      }
+      leapFeedbackBox.className = 'game-feedback feedback-correct';
+      leapFeedbackBox.innerHTML = `
+        <div style="color: var(--success-green); padding: 8px; background: var(--success-bg); border-radius: 6px;">
+          🎯 <strong>Correct!</strong> ${explanationText}
+        </div>
+      `;
+    } else {
+      leapCurrentStreak = 0;
+      leapGameWrongAnswers.push({
+        year: leapCurrentYear,
+        actualIsLeap: actualIsLeap,
+        userAnsweredLeap: userAnsweredLeap,
+        explanation: explanationText
+      });
+
+      leapFeedbackBox.className = 'game-feedback feedback-incorrect';
+      leapFeedbackBox.innerHTML = `
+        <div style="color: var(--error-red); padding: 8px; background: var(--error-bg); border-radius: 6px;">
+          ❌ <strong>Not quite!</strong> ${explanationText}
+        </div>
+      `;
+    }
+
+    leapScoreBadge.textContent = `Score: ${leapGameScore} / 5`;
+    leapStreakBadge.textContent = `🔥 Streak: ${leapCurrentStreak}`;
+
+    if (leapCurrentRound === 4) {
+      leapNextBtn.textContent = 'View Final Results 🏆';
+    } else {
+      leapNextBtn.textContent = 'Next Year ▶';
+    }
+    leapNextBtn.style.display = 'inline-flex';
+  }
+
+  leapYesBtn.addEventListener('click', () => handleLeapUserAnswer(true));
+  leapNoBtn.addEventListener('click', () => handleLeapUserAnswer(false));
+
+  leapNextBtn.addEventListener('click', () => {
+    if (leapCurrentRound < 4) {
+      leapCurrentRound++;
+      renderLeapGameRound();
+    } else {
+      showLeapGameSummary();
+    }
+  });
+
+  function showLeapGameSummary() {
+    leapActiveCard.style.display = 'none';
+    leapSummaryCard.style.display = 'block';
+
+    leapSummaryScore.textContent = `Final Score: ${leapGameScore} out of 5`;
+    leapSummaryStreak.textContent = `🔥 Best Streak: ${leapBestStreak} in a row`;
+
+    if (leapGameWrongAnswers.length === 0) {
+      leapSummaryWrongList.innerHTML = `
+        <p style="color: var(--success-green); font-weight: bold; text-align: center;">
+          🎉 Flawless! You correctly identified all 5 years!
+        </p>
+      `;
+    } else {
+      let html = '';
+      leapGameWrongAnswers.forEach(item => {
+        html += `
+          <div class="review-item review-incorrect" style="margin-bottom: 10px;">
+            <div class="review-q-num">Year ${item.year}</div>
+            <div class="review-q-title">You said: <strong>${item.userAnsweredLeap ? 'Leap Year' : 'Not a Leap Year'}</strong></div>
+            <div class="review-correct-ans">Correct: ${item.actualIsLeap ? 'Is a Leap Year' : 'Not a Leap Year'}</div>
+            <div class="review-explanation"><strong>Explanation:</strong> ${item.explanation}</div>
+          </div>
+        `;
+      });
+      leapSummaryWrongList.innerHTML = html;
+    }
+  }
+
+  function restartLeapGame() {
+    leapCurrentRound = 0;
+    leapGameScore = 0;
+    leapCurrentStreak = 0;
+    leapGameWrongAnswers = [];
+    leapGameYearsInCurrentGame = [];
+
+    leapActiveCard.style.display = 'block';
+    leapSummaryCard.style.display = 'none';
+
+    renderLeapGameRound();
+  }
+
+  leapRestartBtn.addEventListener('click', restartLeapGame);
+
+  // Initialize mini-game
+  renderLeapGameRound();
 
 
   /* ==========================================================================
      5. SECTION 3: PRACTICE CASES & DIAGNOSTIC FEEDBACK
      ========================================================================== */
 
-  /**
-   * Factory function to dynamically generate random 2026 practice cases.
-   */
-  function createPracticeProblem(id) {
-    let range, startObj, endObj, includeStart, correctAnswer, hint, explanation, category, text, unit, isHoursProblem = false;
+  // State tracking across rounds to prevent duplicate dates on consecutive rounds
+  let previousRoundPracticeRanges = {}; // maps caseId -> date key string
+  let currentRoundPracticeRanges = {};
 
-    switch (id) {
-      case 1: { // Cross-month (30-day month in 2026)
-        category = 'Cross-Month Duration';
+  let currentPracticeIndex = 0; // 0 to 9 for cases 1 to 10
+  let currentPracticeProblem = null;
+  let practiceScore = 0;
+  let practiceWrongCases = [];
+  let misconceptionCounts = {
+    'Assuming every month has 30 days': 0,
+    'Forgetting February has 28 days in 2026': 0,
+    'Off-by-one error (start-date counting)': 0
+  };
+
+  const practiceActiveCard = document.getElementById('practice-active-card');
+  const practiceSummaryCard = document.getElementById('practice-summary-card');
+  const practiceCounter = document.getElementById('practice-counter');
+  const practiceScoreLive = document.getElementById('practice-score-live');
+  const practiceProgressFill = document.getElementById('practice-progress-fill');
+  const practiceCategoryBadge = document.getElementById('practice-category-badge');
+  const practiceProblemText = document.getElementById('practice-problem-text');
+
+  const practiceSingleInputGroup = document.getElementById('practice-single-input-group');
+  const practiceDualInputGroup = document.getElementById('practice-dual-input-group');
+  const practiceAnswerInput = document.getElementById('practice-answer-input');
+  const practiceDaysInput = document.getElementById('practice-days-input');
+  const practiceHoursInput = document.getElementById('practice-hours-input');
+  const practiceUnitLabel = document.getElementById('practice-unit-label');
+
+  const practiceSubmitBtn = document.getElementById('practice-submit-btn');
+  const practiceDualSubmitBtn = document.getElementById('practice-dual-submit-btn');
+  const practiceHintBtn = document.getElementById('practice-hint-btn');
+  const practiceNextBtn = document.getElementById('practice-next-btn');
+
+  const practiceHintBox = document.getElementById('practice-hint-box');
+  const practiceHintText = document.getElementById('practice-hint-text');
+  const practiceFeedbackBox = document.getElementById('practice-feedback-box');
+
+  const practiceSummaryScore = document.getElementById('practice-summary-score');
+  const practiceSummaryMisconception = document.getElementById('practice-summary-misconception');
+  const practiceWrongCasesList = document.getElementById('practice-wrong-cases-list');
+  const practiceRestartBtn = document.getElementById('practice-restart-btn');
+
+  /**
+   * Helper to ensure dates do not repeat on consecutive rounds for a case ID
+   */
+  function generateNonRepeating2026Range(caseId, generatorFunc) {
+    const prevKey = previousRoundPracticeRanges[caseId];
+    let candidate;
+    for (let i = 0; i < 50; i++) {
+      candidate = generatorFunc();
+      const candidateKey = `${candidate.startDateStr}_${candidate.endDateStr}`;
+      if (candidateKey !== prevKey) {
+        currentRoundPracticeRanges[caseId] = candidateKey;
+        return candidate;
+      }
+    }
+    currentRoundPracticeRanges[caseId] = `${candidate.startDateStr}_${candidate.endDateStr}`;
+    return candidate;
+  }
+
+  /**
+   * Factory function to dynamically generate random 2026 practice cases in 10 fixed types.
+   */
+  function createPracticeProblem(caseNum) {
+    let range, startObj, endObj, includeStart, correctAnswer, hint, explanation, category, text, unit;
+    let isDualInput = false;
+    let dualCorrectDays = 0;
+    let dualCorrectHours = 0;
+
+    switch (caseNum) {
+      case 1: { // Case 1: Same month duration (do not count start date)
+        category = 'Case 1: Same Month (Exclusive)';
         unit = 'days';
         includeStart = false;
-        range = generateRandom2026DateRange('month30', 5, 30);
+        range = generateNonRepeating2026Range(1, () => generateRandom2026DateRange('sameMonth', 3, 20));
         startObj = range.startObj;
         endObj = range.endObj;
         correctAnswer = calculateDurationDays(startObj, endObj, false);
-        const breakdown = generateStepBreakdown(startObj, endObj, false);
-        text = `A primary school summer camp starts on ${formatUTCDate(startObj)} and ends on ${formatUTCDate(endObj)}. How many days long is the camp? (Do not include the start day).`;
-        hint = `Break it down: ${breakdown.steps.map(s => `${s.label} (${s.days} days)`).join(' + ')}.`;
-        explanation = breakdown.steps.map((s, i) => `Step ${i + 1}: ${s.label} = ${s.days} days`).join('. ') + `. Total = ${correctAnswer} days.`;
+        text = `A detective training camp runs from ${formatUTCDate(startObj)} to ${formatUTCDate(endObj)}. How many days long is the camp? (Do not count the start date).`;
+        hint = `Since both dates are in ${MONTH_NAMES[startObj.getUTCMonth()]}, simply subtract the start day from the end day: ${endObj.getUTCDate()} - ${startObj.getUTCDate()}.`;
+        explanation = `${endObj.getUTCDate()} - ${startObj.getUTCDate()} = ${correctAnswer} days.`;
         break;
       }
-      case 2: { // February 2026 duration
-        category = 'February 2026 Duration';
-        unit = 'days';
-        includeStart = false;
-        range = generateRandom2026DateRange('february', 5, 25);
-        startObj = range.startObj;
-        endObj = range.endObj;
-        correctAnswer = calculateDurationDays(startObj, endObj, false);
-        const breakdown = generateStepBreakdown(startObj, endObj, false);
-        text = `A time detective investigation runs from ${formatUTCDate(startObj)} to ${formatUTCDate(endObj)}. Remember, 2026 is NOT a leap year, so February has 28 days! How many days is the investigation? (Exclude start day).`;
-        hint = `2026 is not a leap year, so February has 28 days! Calculate days remaining in Feb, then add March days if needed.`;
-        explanation = breakdown.steps.map((s, i) => `Step ${i + 1}: ${s.label} = ${s.days} days`).join('. ') + `. Total = ${correctAnswer} days.`;
-        break;
-      }
-      case 3: { // February to March 2026
-        category = 'February Cross-Month';
-        unit = 'days';
-        includeStart = false;
-        startObj = new Date(Date.UTC(2026, 1, Math.floor(Math.random() * 12) + 14)); // Feb 14-25
-        const gap = Math.floor(Math.random() * 20) + 7;
-        endObj = new Date(startObj.getTime() + gap * 86400000);
-        correctAnswer = calculateDurationDays(startObj, endObj, false);
-        const breakdown = generateStepBreakdown(startObj, endObj, false);
-        text = `A detective training course starts on ${formatUTCDate(startObj)} and ends on ${formatUTCDate(endObj)}. How many days long is the course? (Exclude start day).`;
-        hint = `2026 is a normal year (28 days in Feb). Calculate 28 - ${startObj.getUTCDate()} days left in Feb, then add ${endObj.getUTCDate()} days in March.`;
-        explanation = breakdown.steps.map((s, i) => `Step ${i + 1}: ${s.label} = ${s.days} days`).join('. ') + `. Total = ${correctAnswer} days.`;
-        break;
-      }
-      case 4: { // Days & Hours
-        category = 'Days & Hours Duration';
-        unit = 'hours';
-        isHoursProblem = true;
-        const days = Math.floor(Math.random() * 4) + 2;
-        const hours = Math.floor(Math.random() * 15) + 1;
-        correctAnswer = days * 24 + hours;
-        text = `A mystery train journey takes ${days} days and ${hours} hours. How many total hours did the train journey take?`;
-        hint = `There are 24 hours in 1 day. Multiply ${days} × 24, then add ${hours} hours.`;
-        explanation = `1 day = 24 hours. So ${days} days = ${days} × 24 = ${days * 24} hours. Adding ${hours} extra hours: ${days * 24} + ${hours} = ${correctAnswer} hours.`;
-        break;
-      }
-      case 5: { // Inclusive start date in 2026
-        category = 'Inclusive Start Date';
+      case 2: { // Case 2: Same month, INCLUDE start date
+        category = 'Case 2: Same Month (Inclusive)';
         unit = 'days';
         includeStart = true;
-        range = generateRandom2026DateRange('sameMonth', 5, 20);
+        range = generateNonRepeating2026Range(2, () => generateRandom2026DateRange('sameMonth', 3, 20));
         startObj = range.startObj;
         endObj = range.endObj;
         correctAnswer = calculateDurationDays(startObj, endObj, true);
-        text = `A detective science exhibition runs from ${formatUTCDate(startObj)} to ${formatUTCDate(endObj)}. If both the start day and end day are included in the ticket count, how many days is the ticket valid?`;
-        hint = `When counting BOTH start day and end day inclusive, the formula is: (End Day - Start Day) + 1.`;
-        explanation = `Inclusive calculation: (${endObj.getUTCDate()} - ${startObj.getUTCDate()}) + 1 = ${correctAnswer} days.`;
+        text = `A museum pass is valid from ${formatUTCDate(startObj)} to ${formatUTCDate(endObj)}. The instructions say to INCLUDE the start date. How many days is the pass valid?`;
+        hint = `When counting INCLUSIVE of both start and end days, subtract the days and add 1: (${endObj.getUTCDate()} - ${startObj.getUTCDate()}) + 1.`;
+        explanation = `(${endObj.getUTCDate()} - ${startObj.getUTCDate()}) + 1 = ${correctAnswer} days.`;
         break;
       }
-      case 6: { // 31-Day month in 2026
-        category = '31-Day Month Duration';
+      case 3: { // Case 3: Across two months, first month has 30 days
+        category = 'Case 3: Two Months (First Month = 30 Days)';
         unit = 'days';
         includeStart = false;
-        range = generateRandom2026DateRange('month31', 5, 30);
+        range = generateNonRepeating2026Range(3, () => generateRandom2026DateRange('month30', 5, 25));
+        startObj = range.startObj;
+        endObj = range.endObj;
+        correctAnswer = calculateDurationDays(startObj, endObj, false);
+        const m1Name = MONTH_NAMES[startObj.getUTCMonth()];
+        const m2Name = MONTH_NAMES[endObj.getUTCMonth()];
+        const m1DaysLeft = 30 - startObj.getUTCDate();
+        text = `A mystery investigation starts on ${formatUTCDate(startObj)} and ends on ${formatUTCDate(endObj)}. Note that ${m1Name} has 30 days. How many days is the investigation? (Do not count start date).`;
+        hint = `${m1Name} has 30 days. Step 1: ${30} - ${startObj.getUTCDate()} = ${m1DaysLeft} days left in ${m1Name}. Step 2: Add ${endObj.getUTCDate()} days in ${m2Name}.`;
+        explanation = `Days remaining in ${m1Name} (30 - ${startObj.getUTCDate()} = ${m1DaysLeft}) + days in ${m2Name} (${endObj.getUTCDate()}) = ${correctAnswer} days.`;
+        break;
+      }
+      case 4: { // Case 4: Across two months, first month has 31 days
+        category = 'Case 4: Two Months (First Month = 31 Days)';
+        unit = 'days';
+        includeStart = false;
+        range = generateNonRepeating2026Range(4, () => generateRandom2026DateRange('month31', 5, 25));
+        startObj = range.startObj;
+        endObj = range.endObj;
+        correctAnswer = calculateDurationDays(startObj, endObj, false);
+        const m1Name = MONTH_NAMES[startObj.getUTCMonth()];
+        const m2Name = MONTH_NAMES[endObj.getUTCMonth()];
+        const m1DaysLeft = 31 - startObj.getUTCDate();
+        text = `A science fair project starts on ${formatUTCDate(startObj)} and finishes on ${formatUTCDate(endObj)}. Note that ${m1Name} has 31 days. How many days long is the project? (Exclude start date).`;
+        hint = `${m1Name} has 31 days. Step 1: 31 - ${startObj.getUTCDate()} = ${m1DaysLeft} days left in ${m1Name}. Step 2: Add ${endObj.getUTCDate()} days in ${m2Name}.`;
+        explanation = `Days remaining in ${m1Name} (31 - ${startObj.getUTCDate()} = ${m1DaysLeft}) + days in ${m2Name} (${endObj.getUTCDate()}) = ${correctAnswer} days.`;
+        break;
+      }
+      case 5: { // Case 5: January into February 2026 (Feb has 28 days)
+        category = 'Case 5: January to February 2026';
+        unit = 'days';
+        includeStart = false;
+        range = generateNonRepeating2026Range(5, () => {
+          const janDay = Math.floor(Math.random() * 15) + 12; // Jan 12 to 26
+          const febDay = Math.floor(Math.random() * 20) + 4;  // Feb 4 to 23
+          const s = new Date(Date.UTC(2026, 0, janDay));
+          const e = new Date(Date.UTC(2026, 1, febDay));
+          return { startObj: s, endObj: e, startDateStr: toISOUTCDateString(s), endDateStr: toISOUTCDateString(e) };
+        });
+        startObj = range.startObj;
+        endObj = range.endObj;
+        correctAnswer = calculateDurationDays(startObj, endObj, false);
+        const janDaysLeft = 31 - startObj.getUTCDate();
+        text = `A winter mission starts on ${formatUTCDate(startObj)} and finishes on ${formatUTCDate(endObj)}. How many days does it last? (Exclude start date).`;
+        hint = `January has 31 days. Calculate days left in January (31 - ${startObj.getUTCDate()} = ${janDaysLeft}), then add ${endObj.getUTCDate()} days in February.`;
+        explanation = `January days (31 - ${startObj.getUTCDate()} = ${janDaysLeft}) + February days (${endObj.getUTCDate()}) = ${correctAnswer} days.`;
+        break;
+      }
+      case 6: { // Case 6: February into March 2026
+        category = 'Case 6: February to March 2026';
+        unit = 'days';
+        includeStart = false;
+        range = generateNonRepeating2026Range(6, () => {
+          const febDay = Math.floor(Math.random() * 18) + 8; // Feb 8 to 25
+          const marDay = Math.floor(Math.random() * 20) + 4; // Mar 4 to 23
+          const s = new Date(Date.UTC(2026, 1, febDay));
+          const e = new Date(Date.UTC(2026, 2, marDay));
+          return { startObj: s, endObj: e, startDateStr: toISOUTCDateString(s), endDateStr: toISOUTCDateString(e) };
+        });
+        startObj = range.startObj;
+        endObj = range.endObj;
+        correctAnswer = calculateDurationDays(startObj, endObj, false);
+        const febDaysLeft = 28 - startObj.getUTCDate();
+        text = `A detective workshop starts on ${formatUTCDate(startObj)} and ends on ${formatUTCDate(endObj)}. Remember, 2026 is NOT a leap year, so February has 28 days! How many days long is the workshop? (Exclude start date).`;
+        hint = `2026 is a normal year (February has 28 days!). Calculate 28 - ${startObj.getUTCDate()} = ${febDaysLeft} days left in February, plus ${endObj.getUTCDate()} days in March.`;
+        explanation = `February days (28 - ${startObj.getUTCDate()} = ${febDaysLeft}) + March days (${endObj.getUTCDate()}) = ${correctAnswer} days.`;
+        break;
+      }
+      case 7: { // Case 7: Spanning three months
+        category = 'Case 7: Across Three Months';
+        unit = 'days';
+        includeStart = false;
+        range = generateNonRepeating2026Range(7, () => {
+          const startMonth = Math.floor(Math.random() * 8); // Jan to Aug
+          const startDay = Math.floor(Math.random() * 15) + 12;
+          const endMonth = startMonth + 2;
+          const endDay = Math.floor(Math.random() * 15) + 5;
+          const s = new Date(Date.UTC(2026, startMonth, startDay));
+          const e = new Date(Date.UTC(2026, endMonth, endDay));
+          return { startObj: s, endObj: e, startDateStr: toISOUTCDateString(s), endDateStr: toISOUTCDateString(e) };
+        });
         startObj = range.startObj;
         endObj = range.endObj;
         correctAnswer = calculateDurationDays(startObj, endObj, false);
         const breakdown = generateStepBreakdown(startObj, endObj, false);
-        text = `A detective book challenge starts on ${formatUTCDate(startObj)} and finishes on ${formatUTCDate(endObj)}. How many days does the challenge last? (Exclude start day).`;
-        hint = `${MONTH_NAMES[startObj.getUTCMonth()]} has 31 days! Calculate 31 - ${startObj.getUTCDate()}, then add the days in ${MONTH_NAMES[endObj.getUTCMonth()]}.`;
-        explanation = breakdown.steps.map((s, i) => `Step ${i + 1}: ${s.label} = ${s.days} days`).join('. ') + `. Total = ${correctAnswer} days.`;
+        text = `A detective summer expedition starts on ${formatUTCDate(startObj)} and ends on ${formatUTCDate(endObj)}. How many total days does the expedition last? (Exclude start date).`;
+        hint = `Break it down into 3 steps: 1) Days left in ${MONTH_NAMES[startObj.getUTCMonth()]}, 2) Full middle month of ${MONTH_NAMES[startObj.getUTCMonth()+1]} (${getDaysInMonth(2026, startObj.getUTCMonth()+1)} days), 3) Days in ${MONTH_NAMES[endObj.getUTCMonth()]}.`;
+        explanation = breakdown.steps.map((s, i) => `Step ${i + 1}: ${s.label} (${s.days} days)`).join(' + ') + ` = ${correctAnswer} total days.`;
         break;
       }
-      case 7: { // Hours to Days
-        category = 'Days & Hours Duration';
-        unit = 'days';
-        isHoursProblem = true;
-        const totalDays = Math.floor(Math.random() * 5) + 2;
-        const totalHours = totalDays * 24;
-        correctAnswer = totalDays;
-        text = `A secret agent mission lasted ${totalHours} hours. How many full days is that?`;
-        hint = `1 day = 24 hours. Divide ${totalHours} by 24.`;
-        explanation = `${totalHours} ÷ 24 = ${correctAnswer} days.`;
+      case 8: { // Case 8: Duration in days and hours -> convert to total hours
+        category = 'Case 8: Days & Hours to Total Hours';
+        unit = 'hours';
+        const days = Math.floor(Math.random() * 4) + 2;
+        const hours = Math.floor(Math.random() * 15) + 1;
+        correctAnswer = days * 24 + hours;
+        text = `A secret code decoding challenge takes ${days} days and ${hours} hours. How many total hours did the challenge take?`;
+        hint = `1 day = 24 hours. First multiply ${days} × 24 = ${days * 24} hours. Then add the extra ${hours} hours.`;
+        explanation = `${days} days × 24 = ${days * 24} hours. Adding ${hours} hours = ${correctAnswer} hours total.`;
         break;
       }
-      case 8: { // Multi-Month duration (crosses 2 or 3 months in 2026)
-        category = 'Multi-Month Duration';
-        unit = 'days';
-        includeStart = false;
-        range = generateRandom2026DateRange('multiMonth', 35, 60);
-        startObj = range.startObj;
-        endObj = range.endObj;
-        correctAnswer = calculateDurationDays(startObj, endObj, false);
-        const breakdown = generateStepBreakdown(startObj, endObj, false);
-        text = `A mystery museum badge quest runs from ${formatUTCDate(startObj)} to ${formatUTCDate(endObj)}. How many days is the quest open? (Exclude start day).`;
-        hint = `Break it into steps for each month: ${breakdown.steps.map(s => `${s.label} (${s.days} days)`).join(', ')}.`;
-        explanation = breakdown.steps.map((s, i) => `Step ${i + 1}: ${s.label} = ${s.days} days`).join('. ') + `. Total = ${correctAnswer} days.`;
-        break;
-      }
-      case 9: { // February 2026 cross-month
-        category = 'February 2026 Duration';
-        unit = 'days';
-        includeStart = false;
-        startObj = new Date(Date.UTC(2026, 1, Math.floor(Math.random() * 10) + 18));
-        const gap = Math.floor(Math.random() * 15) + 5;
-        endObj = new Date(startObj.getTime() + gap * 86400000);
-        correctAnswer = calculateDurationDays(startObj, endObj, false);
-        const breakdown = generateStepBreakdown(startObj, endObj, false);
-        text = `In the non-leap year 2026, a coding workshop runs from ${formatUTCDate(startObj)} to ${formatUTCDate(endObj)}. How many days is it? (Exclude start day).`;
-        hint = `2026 is not a leap year, so February has 28 days! Calculate 28 - ${startObj.getUTCDate()} days in Feb, plus days in March.`;
-        explanation = breakdown.steps.map((s, i) => `Step ${i + 1}: ${s.label} = ${s.days} days`).join('. ') + `. Total = ${correctAnswer} days.`;
+      case 9: { // Case 9: Convert hours back to days and hours
+        category = 'Case 9: Total Hours to Days & Hours';
+        unit = 'days and hours';
+        isDualInput = true;
+        dualCorrectDays = Math.floor(Math.random() * 4) + 2;
+        dualCorrectHours = Math.floor(Math.random() * 20) + 1;
+        const totalHours = dualCorrectDays * 24 + dualCorrectHours;
+        correctAnswer = totalHours; // internal total tracking
+        text = `A mystery satellite signal broadcast lasted for ${totalHours} total hours. Convert this into days and hours.`;
+        hint = `Divide ${totalHours} by 24 to find full days: ${totalHours} ÷ 24 = ${dualCorrectDays} days with a remainder of ${dualCorrectHours} hours.`;
+        explanation = `${totalHours} ÷ 24 = ${dualCorrectDays} full days (${dualCorrectDays * 24} hours) with ${dualCorrectHours} hours remaining.`;
         break;
       }
       case 10:
-      default: { // Random cross-month duration in 2026
-        category = 'Cross-Month Duration';
+      default: { // Case 10: Mixed challenge question
+        category = 'Case 10: Mixed Challenge Question';
         unit = 'days';
         includeStart = false;
-        range = generateRandom2026DateRange('any', 10, 45);
+        range = generateNonRepeating2026Range(10, () => generateRandom2026DateRange('any', 15, 50));
         startObj = range.startObj;
         endObj = range.endObj;
         correctAnswer = calculateDurationDays(startObj, endObj, false);
         const breakdown = generateStepBreakdown(startObj, endObj, false);
-        text = `A detective holiday trip starts on ${formatUTCDate(startObj)} and ends on ${formatUTCDate(endObj)}. How many days is the trip? (Exclude start day).`;
-        hint = `Break it down month by month: ${breakdown.steps.map(s => `${s.label} (${s.days} days)`).join(' + ')}.`;
+        text = `FINAL CASE: A top-secret master detective trial runs from ${formatUTCDate(startObj)} to ${formatUTCDate(endObj)}. Calculate the exact total duration in days. (Exclude start date).`;
+        hint = `Break down each month: ${breakdown.steps.map(s => `${s.label} (${s.days} days)`).join(' + ')}.`;
         explanation = breakdown.steps.map((s, i) => `Step ${i + 1}: ${s.label} = ${s.days} days`).join('. ') + `. Total = ${correctAnswer} days.`;
         break;
       }
     }
 
     return {
-      id,
+      caseNum,
       category,
       text,
       startDate: startObj ? toISOUTCDateString(startObj) : null,
       endDate: endObj ? toISOUTCDateString(endObj) : null,
       includeStart,
       correctAnswer,
+      isDualInput,
+      dualCorrectDays,
+      dualCorrectHours,
       unit,
       hint,
-      explanation,
-      isHoursProblem
+      explanation
     };
   }
-
-  let currentPracticeIndex = 0;
-  let currentPracticeProblem = null;
-
-  const practiceCategoryBadge = document.getElementById('practice-category-badge');
-  const practiceCounter = document.getElementById('practice-counter');
-  const practiceProblemText = document.getElementById('practice-problem-text');
-  const practiceAnswerInput = document.getElementById('practice-answer-input');
-  const practiceUnitLabel = document.getElementById('practice-unit-label');
-  const practiceSubmitBtn = document.getElementById('practice-submit-btn');
-  const practiceHintBtn = document.getElementById('practice-hint-btn');
-  const practiceNextBtn = document.getElementById('practice-next-btn');
-  const practiceHintBox = document.getElementById('practice-hint-box');
-  const practiceHintText = document.getElementById('practice-hint-text');
-  const practiceFeedbackBox = document.getElementById('practice-feedback-box');
 
   function renderPracticeCase() {
     currentPracticeProblem = createPracticeProblem(currentPracticeIndex + 1);
     const prob = currentPracticeProblem;
 
-    practiceCategoryBadge.textContent = prob.category;
     practiceCounter.textContent = `Case ${currentPracticeIndex + 1} of 10`;
+    practiceScoreLive.textContent = `Score: ${practiceScore} / 10`;
+    practiceProgressFill.style.width = `${((currentPracticeIndex + 1) / 10) * 100}%`;
+    practiceCategoryBadge.textContent = prob.category;
     practiceProblemText.textContent = prob.text;
-    practiceUnitLabel.textContent = prob.unit;
 
-    practiceAnswerInput.value = '';
+    if (prob.isDualInput) {
+      practiceSingleInputGroup.style.display = 'none';
+      practiceDualInputGroup.style.display = 'flex';
+      practiceDaysInput.value = '';
+      practiceHoursInput.value = '';
+    } else {
+      practiceSingleInputGroup.style.display = 'flex';
+      practiceDualInputGroup.style.display = 'none';
+      practiceAnswerInput.value = '';
+      practiceUnitLabel.textContent = prob.unit;
+    }
+
     practiceHintBox.style.display = 'none';
     practiceFeedbackBox.style.display = 'none';
     practiceNextBtn.style.display = 'none';
   }
 
   /**
-   * Diagnostic Misconception Detection Engine
+   * Diagnostic Misconception Detection Engine for 2026 Practice Cases
    */
-  function diagnoseMisconception(prob, userAnswer) {
+  function diagnosePracticeMisconception(prob, userVal, userDays, userHours) {
+    if (prob.isDualInput) {
+      const isCorrect = userDays === prob.dualCorrectDays && userHours === prob.dualCorrectHours;
+      if (isCorrect) {
+        return {
+          isCorrect: true,
+          misconceptionType: null,
+          title: '🎉 Outstanding Detective Work!',
+          message: prob.explanation
+        };
+      }
+      return {
+        isCorrect: false,
+        misconceptionType: null,
+        title: '❌ Case Needs Re-investigation!',
+        message: `You answered ${userDays} days and ${userHours} hours. <br>💡 <strong>Correct Answer:</strong> ${prob.dualCorrectDays} days and ${prob.dualCorrectHours} hours.<br><strong>Working:</strong> ${prob.explanation}`
+      };
+    }
+
     const correct = prob.correctAnswer;
-    if (userAnswer === correct) {
+    if (userVal === correct) {
       return {
         isCorrect: true,
+        misconceptionType: null,
         title: '🎉 Outstanding Detective Work!',
         message: prob.explanation
       };
     }
 
-    // Check specific known misconceptions
+    let detectedType = null;
     let diagnosticMsg = '';
 
     // Misconception 1: Assuming 30 days per month
-    if (!prob.isHoursProblem && prob.startDate && prob.endDate) {
+    if (prob.startDate && prob.endDate) {
       const sObj = parseUTCDate(prob.startDate);
       const eObj = parseUTCDate(prob.endDate);
-      const sMonthDays = getDaysInMonth(sObj.getUTCFullYear(), sObj.getUTCMonth());
+      const sMonthDays = getDaysInMonth(2026, sObj.getUTCFullYear() === 2026 ? sObj.getUTCMonth() : 0);
 
       if (sMonthDays !== 30) {
-        // Calculate what answer user gets if assuming 30 days
         const startDay = sObj.getUTCDate();
         const endDay = eObj.getUTCDate();
-        const assumed30Days = (30 - startDay) + endDay + (prob.includeStart ? 1 : 0);
+        const assumed30Val = (30 - startDay) + endDay + (prob.includeStart ? 1 : 0);
 
-        if (userAnswer === assumed30Days) {
+        if (userVal === assumed30Val) {
+          detectedType = 'Assuming every month has 30 days';
           diagnosticMsg = `
-            🔎 <strong>Misconception Detected: Assuming 30 days per month!</strong><br>
-            You likely assumed ${MONTH_NAMES[sObj.getUTCMonth()]} has 30 days. But remember our rhyme:
-            <em>${MONTH_NAMES[sObj.getUTCMonth()]} actually has ${sMonthDays} days!</em>
+            🔎 <strong>Misconception Detected: Assuming every month has 30 days!</strong><br>
+            You likely assumed ${MONTH_NAMES[sObj.getUTCMonth()]} has 30 days. But ${MONTH_NAMES[sObj.getUTCMonth()]} actually has <strong>${sMonthDays} days</strong>!
           `;
         }
       }
     }
 
-    // Misconception 2: Off by 1 (Start/End date inclusive/exclusive mix-up)
-    if (!diagnosticMsg && !prob.isHoursProblem) {
-      if (userAnswer === correct + 1) {
+    // Misconception 2: Forgetting February has 28 days in 2026
+    if (!detectedType && prob.startDate && prob.endDate) {
+      const sObj = parseUTCDate(prob.startDate);
+      if (sObj.getUTCMonth() === 1) { // Feb
+        const startDay = sObj.getUTCDate();
+        const eObj = parseUTCDate(prob.endDate);
+        const endDay = eObj.getUTCDate();
+        const assumed29Val = (29 - startDay) + endDay + (prob.includeStart ? 1 : 0);
+
+        if (userVal === assumed29Val) {
+          detectedType = 'Forgetting February has 28 days in 2026';
+          diagnosticMsg = `
+            🔎 <strong>Misconception Detected: Forgetting February has 28 days!</strong><br>
+            You calculated February as if it had 29 days! Remember: <strong>2026 is NOT a leap year</strong>, so February has 28 days!
+          `;
+        }
+      }
+    }
+
+    // Misconception 3: Off-by-one error (start-date counting)
+    if (!detectedType) {
+      if (!prob.includeStart && userVal === correct + 1) {
+        detectedType = 'Off-by-one error (start-date counting)';
         diagnosticMsg = `
-          🔎 <strong>Misconception Detected: Off by 1 (Added 1 extra day)!</strong><br>
-          You counted both the start and end days or added 1 day too many. Unless specified as "inclusive", standard duration counts the <em>nights/steps</em> between dates!
+          🔎 <strong>Misconception Detected: Off by 1 (Counted start date by mistake)!</strong><br>
+          You added 1 extra day by including the start date. Standard duration excludes the start date!
         `;
-      } else if (userAnswer === correct - 1) {
+      } else if (prob.includeStart && userVal === correct - 1) {
+        detectedType = 'Off-by-one error (start-date counting)';
         diagnosticMsg = `
-          🔎 <strong>Misconception Detected: Off by 1 (Short by 1 day)!</strong><br>
-          You might have missed counting one of the days or subtracted 1 too many!
+          🔎 <strong>Misconception Detected: Off by 1 (Forgot to include start date)!</strong><br>
+          The question specifically asked to INCLUDE the start date, so you need to add 1 to your result!
+        `;
+      } else if (userVal === correct - 1 || userVal === correct + 1) {
+        detectedType = 'Off-by-one error (start-date counting)';
+        diagnosticMsg = `
+          🔎 <strong>Misconception Detected: Off-by-one error!</strong><br>
+          Your calculation was off by exactly 1 day. Check whether you counted the start day or step counts correctly!
         `;
       }
     }
 
-    // Misconception 3: February length error (28 vs 29 in leap year)
-    if (!diagnosticMsg && prob.category.includes('February')) {
-      if (userAnswer === correct - 1 || userAnswer === correct + 1) {
-        diagnosticMsg = `
-          🔎 <strong>Misconception Detected: February Length Error!</strong><br>
-          Double check if the year in this case is a <strong>Leap Year</strong> (divisible by 4, having 29 days) or a normal year (28 days)!
-        `;
-      }
-    }
-
-    // Generic friendly feedback fallback
-    if (!diagnosticMsg) {
+    if (!detectedType) {
       diagnosticMsg = `
-        🔎 <strong>Detective Clue:</strong> Take a look at the month lengths again.
-        Remember: September, April, June, November have 30 days; all the rest have 31 (except Feb with 28/29).
+        🔎 <strong>Detective Clue:</strong> Double check your month lengths and step addition!
       `;
     }
 
     return {
       isCorrect: false,
+      misconceptionType: detectedType,
       title: '❌ Case Needs Re-investigation!',
       message: `${diagnosticMsg}<br><br>💡 <strong>Step-by-Step Solution:</strong> ${prob.explanation}`
     };
+  }
+
+  function handlePracticeSubmit(userVal, userDays, userHours) {
+    const prob = currentPracticeProblem;
+    const res = diagnosePracticeMisconception(prob, userVal, userDays, userHours);
+
+    if (res.isCorrect) {
+      practiceScore++;
+      practiceScoreLive.textContent = `Score: ${practiceScore} / 10`;
+    } else {
+      practiceWrongCases.push({
+        caseNum: prob.caseNum,
+        category: prob.category,
+        text: prob.text,
+        userAnswerStr: prob.isDualInput ? `${userDays} days ${userHours} hours` : `${userVal} ${prob.unit}`,
+        correctAnswerStr: prob.isDualInput ? `${prob.dualCorrectDays} days ${prob.dualCorrectHours} hours` : `${prob.correctAnswer} ${prob.unit}`,
+        explanation: prob.explanation,
+        misconception: res.misconceptionType
+      });
+
+      if (res.misconceptionType && misconceptionCounts.hasOwnProperty(res.misconceptionType)) {
+        misconceptionCounts[res.misconceptionType]++;
+      }
+    }
+
+    practiceFeedbackBox.className = `feedback-box ${res.isCorrect ? 'feedback-correct' : 'feedback-incorrect'}`;
+    practiceFeedbackBox.innerHTML = `
+      <div class="feedback-diagnostic-title">${res.title}</div>
+      <div>${res.message}</div>
+    `;
+    practiceFeedbackBox.style.display = 'block';
+
+    if (currentPracticeIndex === 9) {
+      practiceNextBtn.textContent = 'View Practice Summary 🏆';
+    } else {
+      practiceNextBtn.textContent = 'Next Case ▶';
+    }
+    practiceNextBtn.style.display = 'inline-flex';
   }
 
   practiceSubmitBtn.addEventListener('click', () => {
@@ -903,31 +1157,114 @@ document.addEventListener('DOMContentLoaded', () => {
       practiceFeedbackBox.style.display = 'block';
       return;
     }
+    handlePracticeSubmit(val, null, null);
+  });
 
-    const prob = currentPracticeProblem;
-    const result = diagnoseMisconception(prob, val);
-
-    practiceFeedbackBox.className = `feedback-box ${result.isCorrect ? 'feedback-correct' : 'feedback-incorrect'}`;
-    practiceFeedbackBox.innerHTML = `
-      <div class="feedback-diagnostic-title">${result.title}</div>
-      <div>${result.message}</div>
-    `;
-    practiceFeedbackBox.style.display = 'block';
-    practiceNextBtn.style.display = 'inline-flex';
+  practiceDualSubmitBtn.addEventListener('click', () => {
+    const dVal = parseInt(practiceDaysInput.value, 10);
+    const hVal = parseInt(practiceHoursInput.value, 10);
+    if (isNaN(dVal) || isNaN(hVal)) {
+      practiceFeedbackBox.className = 'feedback-box feedback-incorrect';
+      practiceFeedbackBox.innerHTML = '⚠️ Please enter numbers for both days and hours!';
+      practiceFeedbackBox.style.display = 'block';
+      return;
+    }
+    handlePracticeSubmit(null, dVal, hVal);
   });
 
   practiceHintBtn.addEventListener('click', () => {
-    const prob = currentPracticeProblem;
-    practiceHintText.textContent = prob.hint;
+    practiceHintText.textContent = currentPracticeProblem.hint;
     practiceHintBox.style.display = 'block';
   });
 
   practiceNextBtn.addEventListener('click', () => {
-    currentPracticeIndex = (currentPracticeIndex + 1) % 10;
-    renderPracticeCase();
+    if (currentPracticeIndex < 9) {
+      currentPracticeIndex++;
+      renderPracticeCase();
+    } else {
+      showPracticeSummary();
+    }
   });
 
-  // Initialize Section 3
+  function showPracticeSummary() {
+    practiceActiveCard.style.display = 'none';
+    practiceSummaryCard.style.display = 'block';
+
+    practiceSummaryScore.textContent = `Final Score: ${practiceScore} out of 10`;
+
+    // Find most frequent misconception
+    let maxCount = 0;
+    let dominantMisconception = null;
+    for (const [mType, count] of Object.entries(misconceptionCounts)) {
+      if (count > maxCount) {
+        maxCount = count;
+        dominantMisconception = mType;
+      }
+    }
+
+    if (dominantMisconception && maxCount > 0) {
+      practiceSummaryMisconception.innerHTML = `
+        <strong>🔎 Key Misconception Spotlight:</strong><br>
+        The misconception you encountered most was: <strong>"${dominantMisconception}"</strong> (${maxCount} time${maxCount > 1 ? 's' : ''}).<br>
+        <span class="help-text">Review the cases below to lock in the correct calculation strategy!</span>
+      `;
+      practiceSummaryMisconception.style.display = 'block';
+    } else if (practiceWrongCases.length > 0) {
+      practiceSummaryMisconception.innerHTML = `
+        <strong>🔎 Diagnostic Summary:</strong> You had a few minor errors, but no persistent misconception trend detected! Great effort!
+      `;
+      practiceSummaryMisconception.style.display = 'block';
+    } else {
+      practiceSummaryMisconception.innerHTML = `
+        <strong>🌟 Flawless Detective Work!</strong> You solved all 10 cases without any misconceptions! Outstanding!
+      `;
+      practiceSummaryMisconception.style.display = 'block';
+    }
+
+    // Build wrong cases review
+    if (practiceWrongCases.length === 0) {
+      practiceWrongCasesList.innerHTML = '<p style="color: var(--success-green); font-weight: bold;">🎉 No wrong cases to re-investigate! Perfect score!</p>';
+    } else {
+      let html = '';
+      practiceWrongCases.forEach(item => {
+        html += `
+          <div class="review-item review-incorrect" style="margin-bottom: 12px;">
+            <div class="review-q-num">Case ${item.caseNum}: ${item.category}</div>
+            <div class="review-q-title">${item.text}</div>
+            <div class="review-user-ans">Your Answer: <span style="color: var(--error-red);">${item.userAnswerStr}</span></div>
+            <div class="review-correct-ans">Correct Answer: ${item.correctAnswerStr}</div>
+            ${item.misconception ? `<div style="font-size: 0.88rem; color: #b45309; margin-bottom: 6px;">🔎 Misconception: <strong>${item.misconception}</strong></div>` : ''}
+            <div class="review-explanation"><strong>Step-by-step:</strong> ${item.explanation}</div>
+          </div>
+        `;
+      });
+      practiceWrongCasesList.innerHTML = html;
+    }
+  }
+
+  function restartPractice() {
+    // Transfer current round ranges to previousRoundPracticeRanges so dates don't repeat on consecutive rounds
+    previousRoundPracticeRanges = { ...currentRoundPracticeRanges };
+    currentRoundPracticeRanges = {};
+
+    currentPracticeIndex = 0;
+    practiceScore = 0;
+    practiceWrongCases = [];
+    misconceptionCounts = {
+      'Assuming every month has 30 days': 0,
+      'Forgetting February has 28 days in 2026': 0,
+      'Off-by-one error (start-date counting)': 0
+    };
+
+    practiceActiveCard.style.display = 'block';
+    practiceSummaryCard.style.display = 'none';
+
+    renderPracticeCase();
+  }
+
+  practiceRestartBtn.addEventListener('click', restartPractice);
+
+  // Initialize Section 3 Practice
   renderPracticeCase();
 
 
