@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Time Detective - Date & Duration Master</title>
+  <meta name="description" content="An interactive time detective game for 11-year-olds to master date durations, month lengths, and leap years!">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <a href="#main-content" class="skip-link">Skip to main content</a>
+
+  <header class="app-header">
+    <div class="header-container">
+      <div class="logo-group">
+        <span class="logo-icon" aria-hidden="true">🕵️‍♂️</span>
+        <div>
+          <h1 class="app-title">Time Detective</h1>
+          <p class="app-subtitle">Solve Date Mysteries & Master Time Durations!</p>
+        </div>
+      </div>
+      <div class="detective-badge-summary" id="badge-summary" aria-label="Detective Rank">
+        <span class="badge-icon">⭐</span>
+        <span id="rank-text">Junior Detective</span>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <nav class="top-nav" aria-label="Main Navigation">
+      <button class="nav-tab active" data-target="calendar-explorer" id="tab-calendar-explorer" aria-selected="true" role="tab" aria-controls="calendar-explorer">
+        <span class="tab-icon" aria-hidden="true">🗓️</span>
+        <span class="tab-label">Calendar Explorer</span>
+      </button>
+      <button class="nav-tab" data-target="leap-year-lab" id="tab-leap-year-lab" aria-selected="false" role="tab" aria-controls="leap-year-lab">
+        <span class="tab-icon" aria-hidden="true">🔬</span>
+        <span class="tab-label">Leap Year Lab</span>
+      </button>
+      <button class="nav-tab" data-target="practice" id="tab-practice" aria-selected="false" role="tab" aria-controls="practice">
+        <span class="tab-icon" aria-hidden="true">📝</span>
+        <span class="tab-label">Practice Cases</span>
+      </button>
+      <button class="nav-tab" data-target="challenge-quiz" id="tab-challenge-quiz" aria-selected="false" role="tab" aria-controls="challenge-quiz">
+        <span class="tab-icon" aria-hidden="true">🏆</span>
+        <span class="tab-label">Challenge Quiz</span>
+      </button>
+    </nav>
+  </header>
+
+  <main id="main-content" class="main-container">
+
+    <!-- SECTION 1: CALENDAR EXPLORER -->
+    <section id="calendar-explorer" class="section-panel active" role="tabpanel" aria-labelledby="tab-calendar-explorer">
+      <div class="section-header">
+        <h2>🗓️ Section 1: Calendar Explorer</h2>
+        <p class="section-desc">Pick two dates to inspect the exact duration between them and see how time breaks down month by month!</p>
+      </div>
+
+      <div class="grid-layout explorer-grid">
+        <!-- Controls Card -->
+        <div class="card controls-card">
+          <h3 class="card-title">🔍 Investigation Setup</h3>
+
+          <div class="form-group">
+            <label for="start-date" class="input-label">Start Date:</label>
+            <input type="date" id="start-date" class="date-input" value="2025-03-05">
+          </div>
+
+          <div class="form-group">
+            <label for="end-date" class="input-label">End Date:</label>
+            <input type="date" id="end-date" class="date-input" value="2025-04-20">
+          </div>
+
+          <!-- Toggle Switch for Include Start Date -->
+          <div class="toggle-container">
+            <label class="toggle-switch">
+              <input type="checkbox" id="include-start-toggle" aria-describedby="toggle-explanation">
+              <span class="toggle-slider"></span>
+            </label>
+            <div>
+              <span class="toggle-label-text">Include Start Date in count</span>
+              <p id="toggle-explanation" class="help-text">
+                Standard duration counts the <em>nights</em> between dates (e.g., 5 March to 7 March = 2 days). Turning this on counts both the start day and end day inclusive (3 days).
+              </p>
+            </div>
+          </div>
+
+          <button id="quick-preset-btn" class="btn btn-secondary">🎲 Try Random Date Case</button>
+        </div>
+
+        <!-- Breakdown Card -->
+        <div class="card breakdown-card">
+          <h3 class="card-title">💡 Detective Case Breakdown</h3>
+          <div id="duration-total-display" class="duration-highlight-box" aria-live="polite">
+            <!-- Dynamic duration result inserted here -->
+          </div>
+
+          <div id="step-by-step-list" class="step-breakdown-container" aria-live="polite">
+            <!-- Dynamic step breakdown inserted here -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Visual Calendar Displays -->
+      <div class="card visual-calendar-card">
+        <div class="calendar-header-bar">
+          <h3 class="card-title">📅 Visual Calendar Map</h3>
+          <div class="calendar-nav-controls">
+            <button id="cal-prev-month" class="btn btn-small" aria-label="Previous Month">◀ Prev</button>
+            <span id="cal-current-label" class="calendar-month-title">March 2025</span>
+            <button id="cal-next-month" class="btn btn-small" aria-label="Next Month">Next ▶</button>
+          </div>
+        </div>
+
+        <div id="calendar-grid-container" class="calendar-grid-wrapper" aria-live="polite">
+          <!-- Calendar grid rendered dynamically -->
+        </div>
+
+        <div class="calendar-legend">
+          <span class="legend-item"><span class="legend-box start-date-box"></span> Start Date</span>
+          <span class="legend-item"><span class="legend-box in-range-box"></span> Included Days</span>
+          <span class="legend-item"><span class="legend-box end-date-box"></span> End Date</span>
+        </div>
+      </div>
+
+      <!-- Month Length Rhyme Card -->
+      <div class="card rhyme-card">
+        <h3 class="card-title">📜 Detective's Secret Rule: Month Lengths</h3>
+        <p class="rhyme-text">
+          "30 days has <strong>September</strong>, <strong>April</strong>, <strong>June</strong>, and <strong>November</strong>.<br>
+          All the rest have <strong>31</strong>, except <strong>February</strong> alone,<br>
+          Which has <strong>28</strong> days clear, and <strong>29</strong> in each leap year!"
+        </p>
+
+        <div class="month-length-grid">
+          <div class="month-chip months-31">Jan <span>31</span></div>
+          <div class="month-chip months-feb">Feb <span>28/29</span></div>
+          <div class="month-chip months-31">Mar <span>31</span></div>
+          <div class="month-chip months-30">Apr <span>30</span></div>
+          <div class="month-chip months-31">May <span>31</span></div>
+          <div class="month-chip months-30">Jun <span>30</span></div>
+          <div class="month-chip months-31">Jul <span>31</span></div>
+          <div class="month-chip months-31">Aug <span>31</span></div>
+          <div class="month-chip months-30">Sep <span>30</span></div>
+          <div class="month-chip months-31">Oct <span>31</span></div>
+          <div class="month-chip months-30">Nov <span>30</span></div>
+          <div class="month-chip months-31">Dec <span>31</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 2: LEAP YEAR LAB -->
+    <section id="leap-year-lab" class="section-panel" role="tabpanel" aria-labelledby="tab-leap-year-lab" hidden>
+      <div class="section-header">
+        <h2>🔬 Section 2: Leap Year Lab</h2>
+        <p class="section-desc">Discover how leap years work, check any year instantly, and test your speed in the Spot the Leap Year mini-game!</p>
+      </div>
+
+      <div class="grid-layout lab-grid">
+        <!-- Checker Card -->
+        <div class="card leap-checker-card">
+          <h3 class="card-title">🔍 Leap Year Inspector</h3>
+          <p>Enter any year to test if it's a leap year:</p>
+
+          <div class="form-group inline-form">
+            <label for="year-input" class="sr-only">Enter Year</label>
+            <input type="number" id="year-input" class="text-input" value="2024" min="1500" max="3000" placeholder="e.g. 2024">
+            <button id="check-year-btn" class="btn btn-primary">Check Year 🔎</button>
+          </div>
+
+          <div id="year-result-box" class="result-box" aria-live="polite">
+            <!-- Result text inserted dynamically -->
+          </div>
+
+          <div class="nearest-leap-box">
+            <h4>📍 Nearest Leap Years:</h4>
+            <div id="nearest-leaps-list" class="leap-chips-container">
+              <!-- Inserted dynamically -->
+            </div>
+          </div>
+        </div>
+
+        <!-- Animated Feb Calendar Card -->
+        <div class="card feb-calendar-card">
+          <h3 class="card-title">🗓️ February Visual Switcher</h3>
+          <p>Watch February change its size based on the year status!</p>
+
+          <div class="feb-toggle-btn-group">
+            <button id="feb-normal-btn" class="btn btn-tab-sub active">Normal Year (28 Days)</button>
+            <button id="feb-leap-btn" class="btn btn-tab-sub">Leap Year (29 Days)</button>
+          </div>
+
+          <div id="feb-visual-container" class="feb-visual-box">
+            <!-- Animated Feb visual calendar -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Mini-Game Card -->
+      <div class="card minigame-card">
+        <div class="minigame-header">
+          <h3 class="card-title">🎮 Mini-Game: Spot the Leap Year!</h3>
+          <div class="game-score-badge">Score: <span id="game-score">0</span> / <span id="game-total">0</span></div>
+        </div>
+        <p>Which one of these 4 years is a <strong>Leap Year</strong> (divisible by 4)? Click the correct card!</p>
+
+        <div id="game-cards-container" class="game-cards-grid">
+          <!-- Game cards inserted dynamically -->
+        </div>
+
+        <div id="game-feedback-box" class="game-feedback" aria-live="polite"></div>
+
+        <div class="game-footer">
+          <button id="next-game-round-btn" class="btn btn-secondary">Next Round 🔀</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 3: PRACTICE WITH FEEDBACK -->
+    <section id="practice" class="section-panel" role="tabpanel" aria-labelledby="tab-practice" hidden>
+      <div class="section-header">
+        <h2>📝 Section 3: Practice Cases with Detective Feedback</h2>
+        <p class="section-desc">Solve date cases step by step. If you make a mistake, our Detective Engine will pinpoint your misconception!</p>
+      </div>
+
+      <div class="card practice-card">
+        <div class="practice-header-bar">
+          <span id="practice-category-badge" class="badge badge-category">Cross-Month Duration</span>
+          <span id="practice-counter" class="case-number">Case 1 of 10</span>
+        </div>
+
+        <div class="problem-display">
+          <span class="case-icon" aria-hidden="true">🔎</span>
+          <p id="practice-problem-text" class="problem-text">Loading problem...</p>
+        </div>
+
+        <div class="practice-input-area">
+          <form id="practice-form" onsubmit="return false;">
+            <div class="form-group inline-form">
+              <label for="practice-answer-input" class="input-label" id="practice-answer-label">Your Answer:</label>
+              <input type="number" id="practice-answer-input" class="text-input answer-input" placeholder="e.g. 15" aria-labelledby="practice-answer-label">
+              <span id="practice-unit-label" class="unit-tag">days</span>
+              <button type="submit" id="practice-submit-btn" class="btn btn-primary">Check Answer 🔍</button>
+            </div>
+          </form>
+
+          <div class="practice-action-buttons">
+            <button id="practice-hint-btn" class="btn btn-small btn-secondary">💡 Need a Hint?</button>
+            <button id="practice-next-btn" class="btn btn-small btn-outline" style="display: none;">Next Case ▶</button>
+          </div>
+        </div>
+
+        <!-- Hint Disclosure Container -->
+        <div id="practice-hint-box" class="hint-box" style="display: none;" aria-live="polite">
+          <span class="hint-title">💡 Detective Hint:</span>
+          <p id="practice-hint-text"></p>
+        </div>
+
+        <!-- Diagnostic Misconception Feedback Box -->
+        <div id="practice-feedback-box" class="feedback-box" style="display: none;" aria-live="polite">
+          <!-- Populated dynamically with diagnostic feedback -->
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION 4: CHALLENGE QUIZ -->
+    <section id="challenge-quiz" class="section-panel" role="tabpanel" aria-labelledby="tab-challenge-quiz" hidden>
+      <div class="section-header">
+        <h2>🏆 Section 4: Detective Challenge Quiz</h2>
+        <p class="section-desc">Take the 10-question final exam to earn your Detective Badge and star rating!</p>
+      </div>
+
+      <!-- Quiz Active Screen -->
+      <div id="quiz-active-container" class="card quiz-card">
+        <div class="quiz-progress-bar-wrapper">
+          <div class="quiz-progress-header">
+            <span>Question <span id="quiz-current-num">1</span> of 10</span>
+            <span id="quiz-score-live">Score: 0</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div id="quiz-progress-fill" class="progress-bar-fill" style="width: 10%;"></div>
+          </div>
+        </div>
+
+        <div class="quiz-question-area">
+          <h3 id="quiz-question-text" class="quiz-question-title">Loading question...</h3>
+
+          <div id="quiz-options-container" class="quiz-options-grid">
+            <!-- MCQ Options inserted dynamically -->
+          </div>
+        </div>
+
+        <div id="quiz-inline-feedback" class="quiz-inline-feedback" style="display: none;" aria-live="polite"></div>
+
+        <div class="quiz-footer">
+          <button id="quiz-next-btn" class="btn btn-primary" style="display: none;">Next Question ▶</button>
+        </div>
+      </div>
+
+      <!-- Quiz Results Screen (Initially Hidden) -->
+      <div id="quiz-results-container" class="card quiz-results-card" style="display: none;">
+        <div class="results-header">
+          <div class="badge-graphic" id="results-badge-graphic">🏆</div>
+          <h3 id="results-title" class="results-title">Quiz Completed!</h3>
+          <div id="results-stars" class="stars-display">⭐⭐⭐</div>
+          <p id="results-score-text" class="results-score">You scored 8 out of 10!</p>
+          <p id="results-rank-desc" class="results-desc">Great job Detective!</p>
+        </div>
+
+        <div class="results-actions">
+          <button id="quiz-restart-btn" class="btn btn-primary">🔄 Retake Challenge Quiz</button>
+        </div>
+
+        <div class="results-review-section">
+          <h4>📑 Step-by-Step Detective Case Review</h4>
+          <p class="help-text">Review how each question was solved step-by-step:</p>
+
+          <div id="quiz-review-list" class="review-list-container">
+            <!-- Review items inserted dynamically -->
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="app-footer">
+    <p>🕵️‍♂️ <strong>Time Detective</strong> - Primary School Mathematics Practice (Aged 11)</p>
+    <p class="footer-sub">Built with Plain HTML, CSS, and Vanilla JS. No personal data collected.</p>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
