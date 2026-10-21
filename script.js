@@ -72,6 +72,92 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   /**
+   * Helper function to generate a random start and end date pair within 2026.
+   * Guarantees:
+   * - Year is 2026 for both start and end dates (1 Jan 2026 to 31 Dec 2026)
+   * - End date is strictly after start date
+   * - Gap is between minGap and maxGap days (inclusive, default 5 to 60)
+   * - Supports specific month constraints: 'february', 'month30', 'month31', 'multiMonth', 'sameMonth'
+   */
+  function generateRandom2026DateRange(constraint = 'any', minGap = 5, maxGap = 60) {
+    let startObj, endObj;
+
+    for (let attempts = 0; attempts < 100; attempts++) {
+      let gap = Math.floor(Math.random() * (maxGap - minGap + 1)) + minGap;
+
+      if (constraint === 'february') {
+        // February 2026 has 28 days
+        const startDayInFeb = Math.floor(Math.random() * 20) + 5; // Feb 5 to Feb 24
+        startObj = new Date(Date.UTC(2026, 1, startDayInFeb));
+        gap = Math.floor(Math.random() * (maxGap - minGap + 1)) + minGap;
+        endObj = new Date(startObj.getTime() + gap * 86400000);
+      } else if (constraint === 'month30') {
+        const months30 = [3, 5, 8, 10]; // April, June, Sept, Nov
+        const m = months30[Math.floor(Math.random() * months30.length)];
+        const startDay = Math.floor(Math.random() * 15) + 12; // day 12 to 26
+        startObj = new Date(Date.UTC(2026, m, startDay));
+        gap = Math.floor(Math.random() * (30 - 5 + 1)) + 5;
+        endObj = new Date(startObj.getTime() + gap * 86400000);
+      } else if (constraint === 'month31') {
+        const months31 = [0, 2, 4, 6, 7, 9, 11]; // Jan, Mar, May, Jul, Aug, Oct, Dec
+        const m = months31[Math.floor(Math.random() * months31.length)];
+        const startDay = Math.floor(Math.random() * 15) + 12; // day 12 to 26
+        startObj = new Date(Date.UTC(2026, m, startDay));
+        gap = Math.floor(Math.random() * (30 - 5 + 1)) + 5;
+        endObj = new Date(startObj.getTime() + gap * 86400000);
+      } else if (constraint === 'multiMonth') {
+        gap = Math.floor(Math.random() * (60 - 35 + 1)) + 35; // 35 to 60 days gap
+        const maxStartDayIndex = 364 - gap;
+        const startDayIndex = Math.floor(Math.random() * Math.max(1, maxStartDayIndex));
+        startObj = new Date(Date.UTC(2026, 0, 1 + startDayIndex));
+        endObj = new Date(startObj.getTime() + gap * 86400000);
+      } else if (constraint === 'sameMonth') {
+        const m = Math.floor(Math.random() * 12);
+        const daysInM = getDaysInMonth(2026, m);
+        gap = Math.floor(Math.random() * (Math.min(20, daysInM - 2) - 5 + 1)) + 5;
+        const startDay = Math.floor(Math.random() * (daysInM - gap)) + 1;
+        startObj = new Date(Date.UTC(2026, m, startDay));
+        endObj = new Date(startObj.getTime() + gap * 86400000);
+      } else {
+        // Any random range in 2026
+        gap = Math.floor(Math.random() * (maxGap - minGap + 1)) + minGap;
+        const maxStartDayIndex = 365 - 1 - gap;
+        const startDayIndex = Math.floor(Math.random() * Math.max(1, maxStartDayIndex));
+        startObj = new Date(Date.UTC(2026, 0, 1 + startDayIndex));
+        endObj = new Date(startObj.getTime() + gap * 86400000);
+      }
+
+      if (
+        startObj.getUTCFullYear() === 2026 &&
+        endObj.getUTCFullYear() === 2026 &&
+        endObj > startObj
+      ) {
+        const actualGap = Math.round((endObj.getTime() - startObj.getTime()) / 86400000);
+        if (actualGap >= minGap && actualGap <= maxGap) {
+          return {
+            startObj,
+            endObj,
+            startDateStr: toISOUTCDateString(startObj),
+            endDateStr: toISOUTCDateString(endObj),
+            gapDays: actualGap
+          };
+        }
+      }
+    }
+
+    // Fallback if loop finishes unexpectedly
+    const startObjFallback = new Date(Date.UTC(2026, 2, 10)); // 10 Mar 2026
+    const endObjFallback = new Date(Date.UTC(2026, 3, 5));   // 5 Apr 2026
+    return {
+      startObj: startObjFallback,
+      endObj: endObjFallback,
+      startDateStr: toISOUTCDateString(startObjFallback),
+      endDateStr: toISOUTCDateString(endObjFallback),
+      gapDays: 26
+    };
+  }
+
+  /**
    * Calculate duration in days between start and end date.
    * If includeStart is true, adds 1 day.
    */
@@ -208,7 +294,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const calCurrentLabel = document.getElementById('cal-current-label');
   const calendarGridContainer = document.getElementById('calendar-grid-container');
 
-  let calendarViewDate = new Date(Date.UTC(2025, 2, 1)); // Default March 2025
+  let calendarViewDate = new Date(Date.UTC(2026, 2, 1)); // Default March 2026
 
   function updateExplorerView() {
     const startObj = parseUTCDate(startDateInput.value);
@@ -339,18 +425,13 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   quickPresetBtn.addEventListener('click', () => {
-    const presets = [
-      { s: '2025-03-05', e: '2025-04-20' },
-      { s: '2024-02-20', e: '2024-03-10' }, // Leap year Feb
-      { s: '2025-02-20', e: '2025-03-10' }, // Non-leap Feb
-      { s: '2025-06-12', e: '2025-07-03' },
-      { s: '2025-11-25', e: '2025-12-15' }
-    ];
-    const rand = presets[Math.floor(Math.random() * presets.length)];
-    startDateInput.value = rand.s;
-    endDateInput.value = rand.e;
-    const startObj = parseUTCDate(rand.s);
-    calendarViewDate = new Date(Date.UTC(startObj.getUTCFullYear(), startObj.getUTCMonth(), 1));
+    const constraints = ['february', 'month30', 'month31', 'multiMonth', 'any'];
+    const selectedConstraint = constraints[Math.floor(Math.random() * constraints.length)];
+    const range = generateRandom2026DateRange(selectedConstraint, 5, 60);
+
+    startDateInput.value = range.startDateStr;
+    endDateInput.value = range.endDateStr;
+    calendarViewDate = new Date(Date.UTC(range.startObj.getUTCFullYear(), range.startObj.getUTCMonth(), 1));
     updateExplorerView();
   });
 
@@ -546,127 +627,168 @@ document.addEventListener('DOMContentLoaded', () => {
      5. SECTION 3: PRACTICE CASES & DIAGNOSTIC FEEDBACK
      ========================================================================== */
 
-  // Problem Database
-  const practiceProblems = [
-    {
-      id: 1,
-      category: 'Cross-Month Duration',
-      text: 'A primary school summer camp starts on 12 June and ends on 3 July. How many days long is the camp? (Do not include the start day).',
-      startDate: '2025-06-12',
-      endDate: '2025-07-03',
-      includeStart: false,
-      correctAnswer: 21,
-      unit: 'days',
-      hint: 'Step 1: Calculate days remaining in June (30 - 12 = 18). Step 2: Add 3 days from July.',
-      explanation: 'June has 30 days. Days left in June = 30 - 12 = 18 days. Days in July = 3 days. Total = 18 + 3 = 21 days.'
-    },
-    {
-      id: 2,
-      category: 'Leap Year February',
-      text: 'A time detective investigation runs from 20 February 2024 to 5 March 2024. Remember, 2024 is a leap year! How many days is the investigation? (Exclude start day).',
-      startDate: '2024-02-20',
-      endDate: '2024-03-05',
-      includeStart: false,
-      correctAnswer: 14,
-      unit: 'days',
-      hint: 'Because 2024 is divisible by 4, February 2024 has 29 days! Subtract 20 from 29, then add 5.',
-      explanation: '2024 is a leap year, so February has 29 days! Days left in Feb = 29 - 20 = 9 days. Days in March = 5 days. Total = 9 + 5 = 14 days.'
-    },
-    {
-      id: 3,
-      category: 'Normal Year February',
-      text: 'A detective training course starts on 22 February 2025 and ends on 6 March 2025. How many days long is the course? (Exclude start day).',
-      startDate: '2025-02-22',
-      endDate: '2025-03-06',
-      includeStart: false,
-      correctAnswer: 12,
-      unit: 'days',
-      hint: '2025 is NOT a leap year, so February has 28 days. Calculate 28 - 22, then add 6.',
-      explanation: '2025 is a normal year, so February has 28 days. Days left in Feb = 28 - 22 = 6 days. Days in March = 6 days. Total = 6 + 6 = 12 days.'
-    },
-    {
-      id: 4,
-      category: 'Days & Hours Duration',
-      text: 'A mystery train journey takes 2 days and 5 hours. How many total hours did the train journey take?',
-      isHoursProblem: true,
-      correctAnswer: 53,
-      unit: 'hours',
-      hint: 'There are 24 hours in 1 day. Multiply 2 × 24, then add 5 hours.',
-      explanation: '1 day = 24 hours. So 2 days = 2 × 24 = 48 hours. Adding 5 extra hours: 48 + 5 = 53 hours.'
-    },
-    {
-      id: 5,
-      category: 'Inclusive Start Date',
-      text: 'A detective science exhibition runs from 5 April to 12 April. If both the start day and end day are included in the ticket count, how many days is the ticket valid?',
-      startDate: '2025-04-05',
-      endDate: '2025-04-12',
-      includeStart: true,
-      correctAnswer: 8,
-      unit: 'days',
-      hint: 'When counting BOTH start day and end day inclusive, the formula is: (End Day - Start Day) + 1.',
-      explanation: 'In same-month inclusive counting: 12 - 5 + 1 = 8 days. (5th, 6th, 7th, 8th, 9th, 10th, 11th, and 12th = 8 days).'
-    },
-    {
-      id: 6,
-      category: 'Cross-Month Duration',
-      text: 'A detective book challenge starts on 25 October and finishes on 10 November. How many days does the challenge last? (Exclude start day).',
-      startDate: '2025-10-25',
-      endDate: '2025-11-10',
-      includeStart: false,
-      correctAnswer: 16,
-      unit: 'days',
-      hint: 'October has 31 days! Calculate 31 - 25, then add 10 days of November.',
-      explanation: 'October has 31 days ("30 days has Sept, Apr, June & Nov... Oct has 31!"). Days left in Oct = 31 - 25 = 6 days. Days in Nov = 10 days. Total = 6 + 10 = 16 days.'
-    },
-    {
-      id: 7,
-      category: 'Days & Hours Duration',
-      text: 'A secret agent mission lasted 72 hours. How many days is that?',
-      isHoursProblem: true,
-      correctAnswer: 3,
-      unit: 'days',
-      hint: '1 day = 24 hours. Divide 72 by 24.',
-      explanation: '72 ÷ 24 = 3 days.'
-    },
-    {
-      id: 8,
-      category: 'Multi-Month Duration',
-      text: 'A mystery museum badge quest runs from 28 March to 5 May. How many days is the quest open? (Exclude start day).',
-      startDate: '2025-03-28',
-      endDate: '2025-05-05',
-      includeStart: false,
-      correctAnswer: 38,
-      unit: 'days',
-      hint: 'Break it into 3 parts: Days remaining in March (31 - 28), all 30 days of April, and 5 days of May!',
-      explanation: 'March has 31 days: 31 - 28 = 3 days. All of April = 30 days. May = 5 days. Total = 3 + 30 + 5 = 38 days.'
-    },
-    {
-      id: 9,
-      category: 'Leap Year February',
-      text: 'In the leap year 2028, a coding workshop runs from 26 February 2028 to 4 March 2028. How many days is it? (Exclude start day).',
-      startDate: '2028-02-26',
-      endDate: '2028-03-04',
-      includeStart: false,
-      correctAnswer: 7,
-      unit: 'days',
-      hint: '2028 is a leap year (2028 ÷ 4 = 507), so February has 29 days.',
-      explanation: 'Feb 2028 has 29 days. 29 - 26 = 3 days in Feb. Add 4 days in March: 3 + 4 = 7 days.'
-    },
-    {
-      id: 10,
-      category: 'Cross-Month Duration',
-      text: 'A detective holiday trip starts on 28 August and ends on 4 September. How many days is the trip? (Exclude start day).',
-      startDate: '2025-08-28',
-      endDate: '2025-09-04',
-      includeStart: false,
-      correctAnswer: 7,
-      unit: 'days',
-      hint: 'August has 31 days! 31 - 28 = 3 days in August.',
-      explanation: 'August has 31 days. 31 - 28 = 3 days in August. Add 4 days in September = 7 days total.'
+  /**
+   * Factory function to dynamically generate random 2026 practice cases.
+   */
+  function createPracticeProblem(id) {
+    let range, startObj, endObj, includeStart, correctAnswer, hint, explanation, category, text, unit, isHoursProblem = false;
+
+    switch (id) {
+      case 1: { // Cross-month (30-day month in 2026)
+        category = 'Cross-Month Duration';
+        unit = 'days';
+        includeStart = false;
+        range = generateRandom2026DateRange('month30', 5, 30);
+        startObj = range.startObj;
+        endObj = range.endObj;
+        correctAnswer = calculateDurationDays(startObj, endObj, false);
+        const breakdown = generateStepBreakdown(startObj, endObj, false);
+        text = `A primary school summer camp starts on ${formatUTCDate(startObj)} and ends on ${formatUTCDate(endObj)}. How many days long is the camp? (Do not include the start day).`;
+        hint = `Break it down: ${breakdown.steps.map(s => `${s.label} (${s.days} days)`).join(' + ')}.`;
+        explanation = breakdown.steps.map((s, i) => `Step ${i + 1}: ${s.label} = ${s.days} days`).join('. ') + `. Total = ${correctAnswer} days.`;
+        break;
+      }
+      case 2: { // February 2026 duration
+        category = 'February 2026 Duration';
+        unit = 'days';
+        includeStart = false;
+        range = generateRandom2026DateRange('february', 5, 25);
+        startObj = range.startObj;
+        endObj = range.endObj;
+        correctAnswer = calculateDurationDays(startObj, endObj, false);
+        const breakdown = generateStepBreakdown(startObj, endObj, false);
+        text = `A time detective investigation runs from ${formatUTCDate(startObj)} to ${formatUTCDate(endObj)}. Remember, 2026 is NOT a leap year, so February has 28 days! How many days is the investigation? (Exclude start day).`;
+        hint = `2026 is not a leap year, so February has 28 days! Calculate days remaining in Feb, then add March days if needed.`;
+        explanation = breakdown.steps.map((s, i) => `Step ${i + 1}: ${s.label} = ${s.days} days`).join('. ') + `. Total = ${correctAnswer} days.`;
+        break;
+      }
+      case 3: { // February to March 2026
+        category = 'February Cross-Month';
+        unit = 'days';
+        includeStart = false;
+        startObj = new Date(Date.UTC(2026, 1, Math.floor(Math.random() * 12) + 14)); // Feb 14-25
+        const gap = Math.floor(Math.random() * 20) + 7;
+        endObj = new Date(startObj.getTime() + gap * 86400000);
+        correctAnswer = calculateDurationDays(startObj, endObj, false);
+        const breakdown = generateStepBreakdown(startObj, endObj, false);
+        text = `A detective training course starts on ${formatUTCDate(startObj)} and ends on ${formatUTCDate(endObj)}. How many days long is the course? (Exclude start day).`;
+        hint = `2026 is a normal year (28 days in Feb). Calculate 28 - ${startObj.getUTCDate()} days left in Feb, then add ${endObj.getUTCDate()} days in March.`;
+        explanation = breakdown.steps.map((s, i) => `Step ${i + 1}: ${s.label} = ${s.days} days`).join('. ') + `. Total = ${correctAnswer} days.`;
+        break;
+      }
+      case 4: { // Days & Hours
+        category = 'Days & Hours Duration';
+        unit = 'hours';
+        isHoursProblem = true;
+        const days = Math.floor(Math.random() * 4) + 2;
+        const hours = Math.floor(Math.random() * 15) + 1;
+        correctAnswer = days * 24 + hours;
+        text = `A mystery train journey takes ${days} days and ${hours} hours. How many total hours did the train journey take?`;
+        hint = `There are 24 hours in 1 day. Multiply ${days} × 24, then add ${hours} hours.`;
+        explanation = `1 day = 24 hours. So ${days} days = ${days} × 24 = ${days * 24} hours. Adding ${hours} extra hours: ${days * 24} + ${hours} = ${correctAnswer} hours.`;
+        break;
+      }
+      case 5: { // Inclusive start date in 2026
+        category = 'Inclusive Start Date';
+        unit = 'days';
+        includeStart = true;
+        range = generateRandom2026DateRange('sameMonth', 5, 20);
+        startObj = range.startObj;
+        endObj = range.endObj;
+        correctAnswer = calculateDurationDays(startObj, endObj, true);
+        text = `A detective science exhibition runs from ${formatUTCDate(startObj)} to ${formatUTCDate(endObj)}. If both the start day and end day are included in the ticket count, how many days is the ticket valid?`;
+        hint = `When counting BOTH start day and end day inclusive, the formula is: (End Day - Start Day) + 1.`;
+        explanation = `Inclusive calculation: (${endObj.getUTCDate()} - ${startObj.getUTCDate()}) + 1 = ${correctAnswer} days.`;
+        break;
+      }
+      case 6: { // 31-Day month in 2026
+        category = '31-Day Month Duration';
+        unit = 'days';
+        includeStart = false;
+        range = generateRandom2026DateRange('month31', 5, 30);
+        startObj = range.startObj;
+        endObj = range.endObj;
+        correctAnswer = calculateDurationDays(startObj, endObj, false);
+        const breakdown = generateStepBreakdown(startObj, endObj, false);
+        text = `A detective book challenge starts on ${formatUTCDate(startObj)} and finishes on ${formatUTCDate(endObj)}. How many days does the challenge last? (Exclude start day).`;
+        hint = `${MONTH_NAMES[startObj.getUTCMonth()]} has 31 days! Calculate 31 - ${startObj.getUTCDate()}, then add the days in ${MONTH_NAMES[endObj.getUTCMonth()]}.`;
+        explanation = breakdown.steps.map((s, i) => `Step ${i + 1}: ${s.label} = ${s.days} days`).join('. ') + `. Total = ${correctAnswer} days.`;
+        break;
+      }
+      case 7: { // Hours to Days
+        category = 'Days & Hours Duration';
+        unit = 'days';
+        isHoursProblem = true;
+        const totalDays = Math.floor(Math.random() * 5) + 2;
+        const totalHours = totalDays * 24;
+        correctAnswer = totalDays;
+        text = `A secret agent mission lasted ${totalHours} hours. How many full days is that?`;
+        hint = `1 day = 24 hours. Divide ${totalHours} by 24.`;
+        explanation = `${totalHours} ÷ 24 = ${correctAnswer} days.`;
+        break;
+      }
+      case 8: { // Multi-Month duration (crosses 2 or 3 months in 2026)
+        category = 'Multi-Month Duration';
+        unit = 'days';
+        includeStart = false;
+        range = generateRandom2026DateRange('multiMonth', 35, 60);
+        startObj = range.startObj;
+        endObj = range.endObj;
+        correctAnswer = calculateDurationDays(startObj, endObj, false);
+        const breakdown = generateStepBreakdown(startObj, endObj, false);
+        text = `A mystery museum badge quest runs from ${formatUTCDate(startObj)} to ${formatUTCDate(endObj)}. How many days is the quest open? (Exclude start day).`;
+        hint = `Break it into steps for each month: ${breakdown.steps.map(s => `${s.label} (${s.days} days)`).join(', ')}.`;
+        explanation = breakdown.steps.map((s, i) => `Step ${i + 1}: ${s.label} = ${s.days} days`).join('. ') + `. Total = ${correctAnswer} days.`;
+        break;
+      }
+      case 9: { // February 2026 cross-month
+        category = 'February 2026 Duration';
+        unit = 'days';
+        includeStart = false;
+        startObj = new Date(Date.UTC(2026, 1, Math.floor(Math.random() * 10) + 18));
+        const gap = Math.floor(Math.random() * 15) + 5;
+        endObj = new Date(startObj.getTime() + gap * 86400000);
+        correctAnswer = calculateDurationDays(startObj, endObj, false);
+        const breakdown = generateStepBreakdown(startObj, endObj, false);
+        text = `In the non-leap year 2026, a coding workshop runs from ${formatUTCDate(startObj)} to ${formatUTCDate(endObj)}. How many days is it? (Exclude start day).`;
+        hint = `2026 is not a leap year, so February has 28 days! Calculate 28 - ${startObj.getUTCDate()} days in Feb, plus days in March.`;
+        explanation = breakdown.steps.map((s, i) => `Step ${i + 1}: ${s.label} = ${s.days} days`).join('. ') + `. Total = ${correctAnswer} days.`;
+        break;
+      }
+      case 10:
+      default: { // Random cross-month duration in 2026
+        category = 'Cross-Month Duration';
+        unit = 'days';
+        includeStart = false;
+        range = generateRandom2026DateRange('any', 10, 45);
+        startObj = range.startObj;
+        endObj = range.endObj;
+        correctAnswer = calculateDurationDays(startObj, endObj, false);
+        const breakdown = generateStepBreakdown(startObj, endObj, false);
+        text = `A detective holiday trip starts on ${formatUTCDate(startObj)} and ends on ${formatUTCDate(endObj)}. How many days is the trip? (Exclude start day).`;
+        hint = `Break it down month by month: ${breakdown.steps.map(s => `${s.label} (${s.days} days)`).join(' + ')}.`;
+        explanation = breakdown.steps.map((s, i) => `Step ${i + 1}: ${s.label} = ${s.days} days`).join('. ') + `. Total = ${correctAnswer} days.`;
+        break;
+      }
     }
-  ];
+
+    return {
+      id,
+      category,
+      text,
+      startDate: startObj ? toISOUTCDateString(startObj) : null,
+      endDate: endObj ? toISOUTCDateString(endObj) : null,
+      includeStart,
+      correctAnswer,
+      unit,
+      hint,
+      explanation,
+      isHoursProblem
+    };
+  }
 
   let currentPracticeIndex = 0;
+  let currentPracticeProblem = null;
 
   const practiceCategoryBadge = document.getElementById('practice-category-badge');
   const practiceCounter = document.getElementById('practice-counter');
@@ -681,10 +803,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const practiceFeedbackBox = document.getElementById('practice-feedback-box');
 
   function renderPracticeCase() {
-    const prob = practiceProblems[currentPracticeIndex];
+    currentPracticeProblem = createPracticeProblem(currentPracticeIndex + 1);
+    const prob = currentPracticeProblem;
 
     practiceCategoryBadge.textContent = prob.category;
-    practiceCounter.textContent = `Case ${currentPracticeIndex + 1} of ${practiceProblems.length}`;
+    practiceCounter.textContent = `Case ${currentPracticeIndex + 1} of 10`;
     practiceProblemText.textContent = prob.text;
     practiceUnitLabel.textContent = prob.unit;
 
@@ -781,7 +904,7 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const prob = practiceProblems[currentPracticeIndex];
+    const prob = currentPracticeProblem;
     const result = diagnoseMisconception(prob, val);
 
     practiceFeedbackBox.className = `feedback-box ${result.isCorrect ? 'feedback-correct' : 'feedback-incorrect'}`;
@@ -794,13 +917,13 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   practiceHintBtn.addEventListener('click', () => {
-    const prob = practiceProblems[currentPracticeIndex];
+    const prob = currentPracticeProblem;
     practiceHintText.textContent = prob.hint;
     practiceHintBox.style.display = 'block';
   });
 
   practiceNextBtn.addEventListener('click', () => {
-    currentPracticeIndex = (currentPracticeIndex + 1) % practiceProblems.length;
+    currentPracticeIndex = (currentPracticeIndex + 1) % 10;
     renderPracticeCase();
   });
 
@@ -812,76 +935,175 @@ document.addEventListener('DOMContentLoaded', () => {
      6. SECTION 4: CHALLENGE QUIZ CONTROLLER
      ========================================================================== */
 
-  const quizQuestionsBank = [
-    {
+  /**
+   * Helper function to build 4 distinct MCQ option choices with 1 correct answer.
+   */
+  function buildMCQOptions(correctVal, unit = 'days') {
+    const distractors = new Set();
+    distractors.add(correctVal);
+
+    const candidates = [
+      correctVal - 1,
+      correctVal + 1,
+      correctVal - 2,
+      correctVal + 2,
+      correctVal + 10,
+      correctVal - 10
+    ];
+
+    for (let c of candidates) {
+      if (c > 0 && !distractors.has(c)) {
+        distractors.add(c);
+      }
+      if (distractors.size === 4) break;
+    }
+
+    const arr = Array.from(distractors);
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+
+    const options = arr.map(v => `${v} ${unit}`);
+    const correctIndex = options.indexOf(`${correctVal} ${unit}`);
+
+    return { options, correctIndex };
+  }
+
+  /**
+   * Generator function to create fresh random 2026 quiz questions.
+   */
+  function generateQuizQuestions() {
+    const questions = [];
+
+    // Question 1: Month length
+    questions.push({
       q: 'How many days are there in April?',
       options: ['28 days', '29 days', '30 days', '31 days'],
       correctIndex: 2,
       working: 'Remember the rhyme: "30 days has September, April, June, and November". April has exactly 30 days.'
-    },
-    {
+    });
+
+    // Question 2: Leap year identification (mix of years: 2024, 2025, 2026, 2027, 2028)
+    const yearOptions = ['2025', '2026', '2027', '2028'];
+    for (let i = yearOptions.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [yearOptions[i], yearOptions[j]] = [yearOptions[j], yearOptions[i]];
+    }
+    const leapIdx = yearOptions.indexOf('2028');
+    questions.push({
       q: 'Which of the following years IS a leap year?',
-      options: ['2023', '2025', '2028', '2031'],
-      correctIndex: 2,
-      working: '2028 is divisible by 4 (2028 ÷ 4 = 507). Therefore, 2028 is a leap year!'
-    },
-    {
-      q: 'How many days does February have in a leap year?',
+      options: yearOptions,
+      correctIndex: leapIdx,
+      working: '2028 is divisible by 4 (2028 ÷ 4 = 507). 2026 and 2027 are not leap years!'
+    });
+
+    // Question 3: Leap year February length
+    questions.push({
+      q: 'How many days does February have in a leap year like 2024 or 2028?',
       options: ['28 days', '29 days', '30 days', '31 days'],
       correctIndex: 1,
       working: 'In a leap year, February gets 1 extra leap day, making it 29 days long.'
-    },
+    });
+
+    // Question 4: 2026 Duration Problem (Same month)
     {
-      q: 'How many hours are in 3 full days?',
-      options: ['36 hours', '48 hours', '72 hours', '84 hours'],
-      correctIndex: 2,
-      working: '1 day = 24 hours. 3 days = 3 × 24 = 72 hours.'
-    },
+      const range = generateRandom2026DateRange('sameMonth', 5, 25);
+      const startObj = range.startObj;
+      const endObj = range.endObj;
+      const ans = calculateDurationDays(startObj, endObj, false);
+      const { options, correctIndex } = buildMCQOptions(ans, 'days');
+      questions.push({
+        q: `A trip starts on ${formatUTCDate(startObj)} and ends on ${formatUTCDate(endObj)}. How many days long is the trip? (Standard exclusive counting).`,
+        options,
+        correctIndex,
+        working: `${endObj.getUTCDate()} - ${startObj.getUTCDate()} = ${ans} days.`
+      });
+    }
+
+    // Question 5: 2026 Duration Problem (Cross-month)
     {
-      q: 'A trip starts on 10 March and ends on 25 March. How many days long is the trip? (Standard exclusive counting).',
-      options: ['14 days', '15 days', '16 days', '30 days'],
-      correctIndex: 1,
-      working: '25 March - 10 March = 15 days.'
-    },
-    {
-      q: 'A summer camp starts on 28 June and ends on 5 July. How many days is the camp? (Exclude start day).',
-      options: ['6 days', '7 days', '8 days', '9 days'],
-      correctIndex: 1,
-      working: 'June has 30 days. Days left in June = 30 - 28 = 2 days. Days in July = 5 days. Total = 2 + 5 = 7 days.'
-    },
-    {
+      const range = generateRandom2026DateRange('month30', 5, 35);
+      const startObj = range.startObj;
+      const endObj = range.endObj;
+      const ans = calculateDurationDays(startObj, endObj, false);
+      const { options, correctIndex } = buildMCQOptions(ans, 'days');
+      const breakdown = generateStepBreakdown(startObj, endObj, false);
+      const stepsStr = breakdown.steps.map(s => `${s.label}: ${s.days} days`).join(' + ');
+      questions.push({
+        q: `A summer camp starts on ${formatUTCDate(startObj)} and ends on ${formatUTCDate(endObj)}. How many days is the camp? (Exclude start day).`,
+        options,
+        correctIndex,
+        working: `Breakdown by month: ${stepsStr} = ${ans} days total.`
+      });
+    }
+
+    // Question 6: Month length (31-day month)
+    questions.push({
       q: 'How many days are in October?',
       options: ['28 days', '29 days', '30 days', '31 days'],
       correctIndex: 3,
       working: 'October is not in the 30-day group (Sept, Apr, June, Nov). So October has 31 days.'
-    },
-    {
-      q: 'A school project runs from 25 February 2024 to 2 March 2024. How many days is it? (2024 is a leap year!).',
-      options: ['5 days', '6 days', '7 days', '8 days'],
-      correctIndex: 2,
-      working: 'Because 2024 is a leap year, Feb has 29 days. 29 - 25 = 4 days in Feb. Plus 2 days in March = 6 days? Wait: 29 - 25 = 4, + 2 = 6? Let\'s check: 26th, 27th, 28th, 29th, 1st, 2nd = 6 days. Let\'s make options correct: 29 - 25 = 4 days in Feb + 2 in March = 6 days.'
-    },
-    {
-      q: 'Convert 1 day and 12 hours into total hours.',
-      options: ['24 hours', '30 hours', '36 hours', '48 hours'],
-      correctIndex: 2,
-      working: '1 day = 24 hours. 24 + 12 = 36 hours.'
-    },
-    {
-      q: 'Which month has 28 days in a normal year?',
-      options: ['January', 'February', 'March', 'April'],
-      correctIndex: 1,
-      working: 'February is the unique month with 28 days in normal years and 29 days in leap years.'
-    }
-  ];
+    });
 
-  // Adjust question 8 working/options cleanly
-  quizQuestionsBank[7] = {
-    q: 'A school project runs from 25 February 2024 to 2 March 2024. How many days is it? (2024 is a leap year!).',
-    options: ['5 days', '6 days', '7 days', '8 days'],
-    correctIndex: 1,
-    working: '2024 is a leap year, so Feb has 29 days. Days left in Feb = 29 - 25 = 4 days. Days in March = 2 days. Total = 4 + 2 = 6 days.'
-  };
+    // Question 7: 2026 February Duration Problem
+    {
+      const range = generateRandom2026DateRange('february', 5, 30);
+      const startObj = range.startObj;
+      const endObj = range.endObj;
+      const ans = calculateDurationDays(startObj, endObj, false);
+      const { options, correctIndex } = buildMCQOptions(ans, 'days');
+      const breakdown = generateStepBreakdown(startObj, endObj, false);
+      const stepsStr = breakdown.steps.map(s => `${s.label}: ${s.days} days`).join(' + ');
+      questions.push({
+        q: `A school project runs from ${formatUTCDate(startObj)} to ${formatUTCDate(endObj)}. How many days is it? (Note: 2026 is NOT a leap year!).`,
+        options,
+        correctIndex,
+        working: `Because 2026 is not a leap year, February has 28 days. Breakdown: ${stepsStr} = ${ans} days.`
+      });
+    }
+
+    // Question 8: 2026 Multi-Month Duration Problem
+    {
+      const range = generateRandom2026DateRange('multiMonth', 35, 60);
+      const startObj = range.startObj;
+      const endObj = range.endObj;
+      const ans = calculateDurationDays(startObj, endObj, false);
+      const { options, correctIndex } = buildMCQOptions(ans, 'days');
+      const breakdown = generateStepBreakdown(startObj, endObj, false);
+      const stepsStr = breakdown.steps.map(s => `${s.label}: ${s.days} days`).join(' + ');
+      questions.push({
+        q: `A detective badge quest runs from ${formatUTCDate(startObj)} to ${formatUTCDate(endObj)}. How many days does it last? (Exclude start day).`,
+        options,
+        correctIndex,
+        working: `Multi-month breakdown: ${stepsStr} = ${ans} days.`
+      });
+    }
+
+    // Question 9: Hours to Days conversion
+    {
+      const days = Math.floor(Math.random() * 3) + 1;
+      const hours = Math.floor(Math.random() * 12) + 4;
+      const totalHours = days * 24 + hours;
+      const { options, correctIndex } = buildMCQOptions(totalHours, 'hours');
+      questions.push({
+        q: `Convert ${days} day${days === 1 ? '' : 's'} and ${hours} hours into total hours.`,
+        options,
+        correctIndex,
+        working: `${days} day${days === 1 ? '' : 's'} = ${days} × 24 = ${days * 24} hours. Adding ${hours} hours: ${days * 24} + ${hours} = ${totalHours} hours.`
+      });
+    }
+
+    // Question 10: 2026 non-leap year February length
+    questions.push({
+      q: 'How many days does February have in the year 2026?',
+      options: ['28 days', '29 days', '30 days', '31 days'],
+      correctIndex: 0,
+      working: '2026 is NOT divisible by 4 (2026 ÷ 4 = 506.5), so 2026 is not a leap year. February 2026 has 28 days.'
+    });
+
+    return questions;
+  }
 
   let quizQuestions = [];
   let currentQuizIndex = 0;
@@ -906,8 +1128,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const quizReviewList = document.getElementById('quiz-review-list');
 
   function startQuiz() {
-    // Shuffle questions
-    quizQuestions = [...quizQuestionsBank].sort(() => Math.random() - 0.5).slice(0, 10);
+    quizQuestions = generateQuizQuestions();
     currentQuizIndex = 0;
     quizScore = 0;
     userQuizAnswers = [];
